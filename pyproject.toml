@@ -1,0 +1,15 @@
+[project]
+name = "vibe-songs-schedule"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.40.19",
+    "pillow>=11.3.0",
+    "pymongo>=4.14.1",
+    "python-dotenv>=1.1.1",
+    "qrcode>=8.2",
+    "rapidfuzz>=3.14.0",
+    "telethon>=1.40.0",
+]
