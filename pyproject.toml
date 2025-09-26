@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.40.19",
     "pillow>=11.3.0",
+    "pydantic>=2.11.9",
     "pymongo>=4.14.1",
     "python-dotenv>=1.1.1",
     "qrcode>=8.2",
