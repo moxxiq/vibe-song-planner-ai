@@ -1,8 +1,8 @@
-import boto3
 import tempfile
 import os
 from datetime import datetime, timezone
 
+from utils.aws import get_s3
 from config import settings
 
 def download_track(db, track):
@@ -32,7 +32,7 @@ def download_track(db, track):
             local_file_path = os.path.join(temp_dir, downloaded_files[0])
             
             # Upload to S3
-            s3_client = boto3.client('s3', region_name=settings.S3_REGION)
+            s3_client = get_s3()
             s3_client.upload_file(local_file_path, settings.S3_BUCKET, s3_key)
             
             # Update track with S3 path and mark as downloaded

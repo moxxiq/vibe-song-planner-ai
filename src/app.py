@@ -10,8 +10,6 @@ THRESHOLD = 85
 
 # read https://www.reddit.com/r/aws/comments/e4cvta/repopipeline_design_best_practise_for_lambda_cicd/
 
-
-
 def handler(event, context):
     db = get_db()
     left_bound = datetime.now(timezone.utc) # now
@@ -43,18 +41,12 @@ def handler(event, context):
 
 
 def send_and_mark(db, t):
-    # Use S3 path if available, otherwise fall back to match file_path
-    path = t.get("s3_path") or t.get("match", {}).get("file_path")
-    
+    path = t.get("file_path")
+
     if not path:
         raise RuntimeError("No file path available for track")
     
     # TODO: реалізуйте ваш транспорт (HTTP/бот) у sender/backend_sender.py
     # send_file(path, meta={"artist": t["artist"], "title": t["title"]})
 
-    db.dispatches.insert_one({
-        "track_id": t["_id"],
-        "file_path": path, # or s3 key
-        "created_at": datetime.now(timezone.utc)
-    })
     db.tracks.update_one({"_id": t["_id"]}, {"$set": {"status": "queued"}})
