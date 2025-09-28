@@ -1,5 +1,4 @@
 import configparser
-import os
 import sys
 import datetime
 from datetime import datetime, timedelta
@@ -13,6 +12,8 @@ from telethon.tl.types import MessageEntityCustomEmoji, MessageEntityTextUrl
 from telethon.tl.custom.message import Message as CustomMessage
 from telethon.tl.functions.messages import SendMessageRequest
 import pytz
+
+from config import settings
 
 
 # Define Kyiv timezone (UTC+3)
@@ -42,7 +43,7 @@ class MessageFormatter:
             tuple: (message_text, entities)
         """
         # Start with the song title
-        message_text = f"{song_data['Artist - Song']}\n"
+        message_text = f"{song_data['artist']} - {song_data['title']}\n"
         
         # Add Spotify text and emoji placeholder
         spotify_text_offset = len(message_text)
@@ -61,7 +62,7 @@ class MessageFormatter:
             MessageEntityTextUrl(
                 offset=spotify_text_offset,
                 length=len("Spotify"),
-                url=song_data['Spotify Link']
+                url=song_data['spotify_link']
             ),
             MessageEntityCustomEmoji(
                 offset=spotify_emoji_offset,
@@ -71,7 +72,7 @@ class MessageFormatter:
             MessageEntityTextUrl(
                 offset=ym_text_offset + 1, # emoji length
                 length=len("YouTube Music"),
-                url=song_data['YouTube Music Link']
+                url=song_data['youtube_music_link']
             ),
             MessageEntityCustomEmoji(
                 offset=ym_emoji_offset + 1, # emoji length
@@ -83,13 +84,13 @@ class MessageFormatter:
         return message_text, entities
 
 
-async def initialize_telegram_client(config: configparser.ConfigParser) -> Optional[TelegramClient]:
+async def initialize_telegram_client() -> Optional[TelegramClient]:
     """Initializes and returns a Telegram client using Telethon."""
     try:
         # Get API credentials from environment or config
-        api_id = os.getenv('TELEGRAM_API_ID') or int(config['TELEGRAM']['api_id'])
-        api_hash = os.getenv('TELEGRAM_API_HASH') or config['TELEGRAM']['api_hash']
-        session_name = os.getenv('TELEGRAM_SESSION_NAME') or config['TELEGRAM'].get('session_name', 'music_scheduler_session')
+        api_id = settings.TELEGRAM_API_ID
+        api_hash = settings.TELEGRAM_API_HASH
+        session_name = settings.TELEGRAM_SESSION_NAME or 'music_scheduler_session'
         
         # Initialize client
         client = TelegramClient(session_name, api_id, api_hash)
@@ -128,7 +129,7 @@ async def send_scheduled_message(
         Tuple containing scheduled message time and file time (if applicable)
     """
     # Parse scheduled time in Kyiv timezone
-    scheduled_time_str = song_data['date scheduled']
+    scheduled_time_str = song_data['scheduled_at']
     date_format = "%d.%m.%Y %H:%M:%S"
     
     try:
@@ -136,16 +137,16 @@ async def send_scheduled_message(
         naive_scheduled_time = datetime.strptime(scheduled_time_str, date_format)
         scheduled_time = KYIV_TZ.localize(naive_scheduled_time)
     except ValueError:
-        print(f"Error: Invalid date format in CSV for song '{song_data['Artist - Song']}'. Expected format: {date_format}", file=sys.stderr)
+        print(f"Error: Invalid date format in CSV for song '{song_data['artist']} - {song_data['title']}'. Expected format: {date_format}", file=sys.stderr)
         return None, None
     
     # Compare with current time in Kyiv timezone
     now = datetime.now(KYIV_TZ)
     if scheduled_time <= now:
-        print(f"Warning: Scheduled time for '{song_data['Artist - Song']}' is in the past. Skipping.", file=sys.stderr)
+        print(f"Warning: Scheduled time for '{song_data['artist']} - {song_data['title']}' is in the past. Skipping.", file=sys.stderr)
         return None, None
     
-    print(f"Scheduling message for '{song_data['Artist - Song']}' to send at {scheduled_time} (Kyiv time).")
+    print(f"Scheduling message for '{song_data['artist']} - {song_data['title']}' to send at {scheduled_time} (Kyiv time).")
     scheduled_file_time = scheduled_time + timedelta(minutes=1)
     
     # Format the message with premium emoji entities and text URL entities
@@ -164,17 +165,17 @@ async def send_scheduled_message(
             no_webpage=False  # Enable link preview
         ))
         
-        print(f"Message scheduled for '{song_data['Artist - Song']}' to Telegram group for {scheduled_time}.")
+        print(f"Message scheduled for '{song_data['artist']} - {song_data['title']}' to Telegram group for {scheduled_time}.")
     except Exception as e:
-        print(f"Error scheduling Telegram message for '{song_data['Artist - Song']}'. Error: {e}", file=sys.stderr)
+        print(f"Error scheduling Telegram message for '{song_data['artist']} - {song_data['title']}'. Error: {e}", file=sys.stderr)
         
         # Try alternative approach if the first one fails
         try:
             # Fallback to sending without custom emoji if needed
             plain_message = (
-                f"{song_data['Artist - Song']}\n"
-                f"[Spotify]({song_data['Spotify Link']})\n"
-                f"[YouTube Music]({song_data['YouTube Music Link']})"
+                f"{song_data['artist']} - {song_data['title']}\n"
+                f"[Spotify]({song_data['spotify_link']})\n"
+                f"[YouTube Music]({song_data['youtube_music_link']})"
             )
             
             await client.send_message(
@@ -184,7 +185,7 @@ async def send_scheduled_message(
                 link_preview=True,
                 parse_mode='markdown'
             )
-            print(f"Message scheduled (without premium emoji) for '{song_data['Artist - Song']}'.")
+            print(f"Message scheduled (without premium emoji) for '{song_data['artist']} - {song_data['title']}'.")
         except Exception as e2:
             print(f"Failed to schedule message with fallback method: {e2}", file=sys.stderr)
             return None, None
@@ -200,10 +201,64 @@ async def send_scheduled_message(
             )
             print(f"File '{os.path.basename(file_to_send_path)}' scheduled for {scheduled_file_time}.")
         except Exception as e:
-            print(f"Error scheduling file for '{song_data['Artist - Song']}'. Error: {e}", file=sys.stderr)
+            print(f"Error scheduling file for '{song_data['artist']} - {song_data['title']}'. Error: {e}", file=sys.stderr)
             return scheduled_time, None
     else:
-        print(f"No suitable file found for '{song_data['Artist - Song']}'.")
+        print(f"No suitable file found for '{song_data['artist']} - {song_data['title']}'.")
         return scheduled_time, None
     
     return scheduled_time, scheduled_file_time
+
+
+async def main() -> None:
+    """Main function to run the scheduled Telegram message sending application."""
+    try:
+        print(f"Starting Telegram Song Scheduler (Kyiv timezone: UTC+3)")
+        print(f"Current time in Kyiv: {datetime.now(KYIV_TZ).strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Load configuration and initialize client
+        config = load_configuration() # TODO: use settings instead of config, rewrite this in the next function
+        telegram_client = await initialize_telegram_client(config)
+
+        if not telegram_client:
+            print("Failed to initialize Telegram client. Exiting.", file=sys.stderr)
+            return
+
+        # Get user and group information
+        me = await telegram_client.get_me()
+        print(f"Logged in as {get_display_name(me)}")
+        
+        # Get group ID from config
+        group_id = config.getint('TELEGRAM', 'group_id')
+        
+        # Test premium emoji functionality
+        # premium_emoji_works = await test_premium_emoji(telegram_client)
+ 
+        # Read songs to schedule
+        songs_to_schedule = read_songs_from_csv()
+        if not songs_to_schedule:
+            print("No songs to schedule found in CSV or CSV file missing. Exiting.", file=sys.stderr)
+            await telegram_client.disconnect()
+            return
+            
+        print(f"Found {len(songs_to_schedule)} songs to schedule.")
+        
+
+        for index, song_data in enumerate(songs_to_schedule, 1):
+            print(f"\nProcessing song {index}/{len(songs_to_schedule)}: {song_data['artist']} - {song_data['title']}")
+            message_sent_time, file_sent_time = await send_scheduled_message(
+                telegram_client, group_id, song_data
+            )
+    except Exception as e:
+        print(f"Unexpected error in main function: {e}", file=sys.stderr)
+    finally:
+        # Ensure client is disconnected
+        if 'telegram_client' in locals() and telegram_client:
+            await telegram_client.disconnect()
+            print("Telegram client disconnected.")
+        print("Scheduler completed.")
+
+
+def schedule_one_message(song_data: Dict[str, str]):
+    # TODO: implement sending data that are ready to be sent
+    pass

@@ -12,6 +12,6 @@ class Settings(BaseSettings):
     YTM_COOKIE_FILE: str | None = None
     S3_BUCKET: str = "vibe-songs"
     S3_REGION: str = "us-east-1"
-    class Config: env_file = ".env"
+    AUDIO_ROOT: str = "/tmp/audio"
 
 settings = Settings()

@@ -1,12 +1,7 @@
-import os, time
-import boto3
-import tempfile
 from datetime import datetime, timezone, timedelta
 from db import get_db
 from config import settings
-
-AUDIO_ROOT = os.environ.get("AUDIO_ROOT", "/tmp/audio")
-THRESHOLD = 85
+from utils.telegram_sender import schedule_one_message
 
 # read https://www.reddit.com/r/aws/comments/e4cvta/repopipeline_design_best_practise_for_lambda_cicd/
 
@@ -46,7 +41,7 @@ def send_and_mark(db, t):
     if not path:
         raise RuntimeError("No file path available for track")
     
-    # TODO: реалізуйте ваш транспорт (HTTP/бот) у sender/backend_sender.py
-    # send_file(path, meta={"artist": t["artist"], "title": t["title"]})
+    # TODO: fetch track from S3 and send via telegram_sender
+    schedule_one_message(t)
 
     db.tracks.update_one({"_id": t["_id"]}, {"$set": {"status": "queued"}})
